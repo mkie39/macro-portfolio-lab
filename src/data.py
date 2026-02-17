@@ -5,6 +5,7 @@ import os
 import yfinance as yf
 
 # --- CONFIGURATION ---
+
 # Define the root directory relative to this script
 ROOT_DIR = Path(__file__).parent.parent
 DATA_DIR = ROOT_DIR / "data"
@@ -32,11 +33,11 @@ def clean_prices(df: pd.DataFrame) -> pd.DataFrame:
     # Force numeric
     df = df.apply(pd.to_numeric, errors="coerce")
 
-    # Forward Fill (limit 5 days)
+    # Forward Fill (reasonable limit of 5 days)
     df_clean = df.ffill(limit=5)
 
     # Drop rows where everything is still missing (e.g. weekends/holidays)
-    df_clean = df_clean.dropna(how="all")
+    df_clean = df_clean.dropna()
 
     return df_clean
 
@@ -54,7 +55,7 @@ def download_data(tickers: list, start_date: str, end_date: str, filename: str):
         if "Close" in df.columns.levels[0]:
             df = df["Close"]
         # Fallback: sometimes yf returns columns like (Ticker, 'Close')
-        # We just want the Close prices.
+        # Just want the Close prices.
 
     # Ensure data dir exists
     output_path = DATA_DIR / filename
