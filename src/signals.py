@@ -51,3 +51,36 @@ def calc_inverse_vol_weights(
 
     # Fill NaNs with 0 (for days with no active signals or missing data)
     return weights.fillna(0)
+
+
+def calc_ls_ts_momentum(
+    prices: pd.DataFrame, lookback: int = 252, skip: int = 21
+) -> pd.DataFrame:
+    """
+    Calculates Long/Short Time Series Momentum.
+    """
+    lagged_prices = prices.shift(skip)
+    momentum_scores = (lagged_prices / prices.shift(lookback)) - 1
+
+    # 1 (Long) if positive, -1 (Short) if negative
+    signals = np.where(momentum_scores > 0, 1, -1)
+
+    return pd.DataFrame(signals, index=prices.index, columns=prices.columns)
+
+
+def calc_ls_inv_vol_weights(
+    rolling_vol: pd.DataFrame, signals: pd.DataFrame
+) -> pd.DataFrame:
+    """
+    Calculates Long/Short inverse volatility weights targeting 100% Gross Exposure.
+    """
+    inv_vol = 1.0 / rolling_vol
+
+    # Raw weights with direction (+ or -)
+    raw_weights = inv_vol * signals
+
+    # Normalize by the sum of absolute weights so total gross exposure is exactly 1.0 (100%)
+    gross_exposure = raw_weights.abs().sum(axis=1)
+    weights = raw_weights.div(gross_exposure, axis=0)
+
+    return weights.fillna(0)
