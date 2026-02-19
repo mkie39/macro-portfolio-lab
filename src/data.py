@@ -71,11 +71,23 @@ def download_data(tickers: list, start_date: str, end_date: str, filename: str):
 if __name__ == "__main__":
     # 1. Define your universe
     tickers = [
-        "SPY",  # US Equities
-        "EZU",  # Eurozone Equities
-        "IEF",  # US Treasuries (7-10Y)
-        "GLD",  # Gold
-        "EURUSD=X",  # FX Rate
+        # Broad Equities
+        "SPY",
+        "QQQ",
+        "IWM",
+        "EFA",
+        "EEM",
+        # US Sectors
+        "XLK",
+        "XLF",
+        "XLV",
+        "XLE",
+        # Fixed Income & Hard Assets
+        "TLT",
+        "IEF",
+        "LQD",
+        "GLD",
+        "GSG",
     ]
 
     # 2. Download Data
