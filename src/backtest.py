@@ -6,7 +6,6 @@ def calculate_returns(prices: pd.DataFrame) -> pd.DataFrame:
     """Calculates daily log returns."""
     return np.log(prices / prices.shift(1))
 
-
 def run_backtest_ts_momentum(
     prices: pd.DataFrame,
     signals: pd.DataFrame,
@@ -52,3 +51,4 @@ def run_backtest_ts_momentum(
             "Cumulative_Equity": cumulative_returns,
         }
     )
+
