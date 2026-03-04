@@ -3,7 +3,89 @@ import numpy as np
 from arch import arch_model
 import warnings
 
+# FX pairs where USD is the quote currency → already "USD per 1 foreign unit"
+_USD_QUOTED = {"AUDUSD": "AUD", "NZDUSD": "NZD", "GBPUSD": "GBP", "EURUSD": "EUR"}
+# FX pairs where USD is the base currency → must invert to get "USD per 1 foreign unit"
+_USD_BASE = {
+    "USDJPY": "JPY",
+    "USDCHF": "CHF",
+    "USDCAD": "CAD",
+    "USDMXN": "MXN",
+    "USDBRL": "BRL",
+}
+
 warnings.filterwarnings("ignore")  # Suppresses convergence warnings from the solver
+
+
+def calculate_fx_carry_signal(
+    spot_prices: pd.DataFrame, policy_rates: pd.DataFrame
+) -> pd.DataFrame:
+    """
+    Computes the FX carry signal as the interest rate differential (Foreign - USD)
+    for each currency pair, with all spots normalised to 'USD per unit of foreign currency'.
+
+    Parameters
+    ----------
+    spot_prices   : daily spot rates as downloaded (e.g. USDJPY in JPY per USD)
+    policy_rates  : daily (forward-filled) central-bank policy rates, columns = currency codes
+
+    Returns
+    -------
+    DataFrame of daily carry signals (Foreign Rate - USD Rate), one column per pair.
+    Positive value  → foreign currency offers a carry pick-up (high yielder).
+    Negative value  → foreign currency is a funding currency.
+    """
+    # Step 1: normalise all pairs to "USD per 1 unit of foreign currency"
+    spot_normalised = spot_prices.copy()
+    for pair in _USD_BASE:
+        if pair in spot_normalised.columns:
+            spot_normalised[pair] = 1.0 / spot_normalised[pair]
+
+    # Rename columns to the foreign-currency code for easier lookup
+    pair_to_ccy = {**_USD_QUOTED, **_USD_BASE}
+
+    # Step 2: compute carry = foreign_rate - USD_rate for each pair
+    usd_rate = policy_rates["USD"]
+    carry_signals = {}
+    for pair, foreign_ccy in pair_to_ccy.items():
+        if pair in spot_normalised.columns and foreign_ccy in policy_rates.columns:
+            carry_signals[pair] = policy_rates[foreign_ccy] - usd_rate
+
+    return pd.DataFrame(carry_signals, index=policy_rates.index)
+
+
+def rank_carry_signals(signal_df: pd.DataFrame, top_n: int = 3) -> pd.DataFrame:
+    """
+    Converts continuous carry differentials into a rank-based +1 / 0 / -1 signal.
+
+    For each row (date):
+      - Top `top_n` currencies by differential → +1  (long, high yielder)
+      - Bottom `top_n` currencies               → -1  (short, funding currency)
+      - Remaining currencies                    →  0  (no position)
+
+    Parameters
+    ----------
+    signal_df : DataFrame of carry differentials (output of calculate_fx_carry_signal)
+    top_n     : number of long and short positions per rebalance date
+
+    Returns
+    -------
+    DataFrame of integer signals (+1 / 0 / -1), same shape as signal_df.
+    """
+    n_assets = signal_df.shape[1]
+    if top_n * 2 > n_assets:
+        raise ValueError(
+            f"top_n={top_n} requires {top_n * 2} positions but only {n_assets} assets available."
+        )
+
+    # Rank ascending: rank 1 = lowest differential (most attractive short)
+    ranks = signal_df.rank(axis=1, method="first")
+
+    ranked = pd.DataFrame(0, index=signal_df.index, columns=signal_df.columns)
+    ranked[ranks <= top_n] = -1  # bottom top_n  → short
+    ranked[ranks > n_assets - top_n] = 1  # top    top_n  → long
+
+    return ranked
 
 
 def calc_ts_momentum(
